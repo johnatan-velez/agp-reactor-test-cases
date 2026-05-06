@@ -1,0 +1,128 @@
+# Sonatype Guide - Agentic Patches (AGP) Configuration
+# Learn more: https://guide.sonatype.com
+#
+# This file provides full control over AGP behavior.
+# AGP works without this file using defaults, but this gives you:
+# - Per-project validation commands in multi-module/multi-project repos
+# - Custom ignore patterns for dependencies and paths
+# - Fine-tuned PR creation and grouping strategies
+# - Auto-merge and rate limiting settings
+
+version: "1"
+
+# Paths and packages AGP should skip
+ignore:
+  # Glob patterns for paths to exclude from scanning
+  # Customize based on your ecosystem
+  paths:
+    - "**/target/**"        # Maven build output
+    # - "**/node_modules/**"  # npm dependencies (uncomment if using npm)
+    # - "**/.venv/**"         # Python virtualenv (uncomment if using Python)
+    # - "**/vendor/**"        # Vendored dependencies
+    # - "**/dist/**"          # Build artifacts
+  # Package names to never upgrade (e.g., internal packages, deprecated libs)
+  packages: []
+    # - "com.example.internal:*"
+    # - "legacy-deprecated-lib"
+
+# AI agent for automated fix attempts
+agent:
+  enabled: false
+  provider: anthropic  # "anthropic" or "bedrock"
+  model: claude-sonnet-4-5
+  maxFixAttempts: 3
+  timeout: 30m
+
+# Build validation after upgrades
+# These commands run to verify the changes don't break the build
+validation:
+  enabled: true
+  # Commands to validate the project after dependency changes
+  # These are the actual commands this Maven project uses
+  commands:
+    - "mvn verify -q"
+  timeout: 10m
+
+# Pull request settings
+pr:
+  labels:
+    - dependencies
+    - automated
+    - agp
+  draft: false
+  titleTemplate: "chore(deps): {{.GroupName}}"
+  branchTemplate: "agp/{{.GroupID}}"
+  reviewers: []
+    # - "your-github-username"
+
+# Rate limiting to prevent overwhelming the repository
+limits:
+  maxOpenPRs: 5        # Max concurrent AGP PRs
+  maxPRsPerRun: 10     # Max PRs created per workflow run
+  # Wait periods before creating PRs for different update types
+  waitPeriod:
+    major: 7d          # Wait 7 days for major version updates
+    minor: 3d          # Wait 3 days for minor version updates
+    patch: 1d          # Wait 1 day for patch version updates
+
+# Auto-merge settings (use with caution)
+automerge:
+  enabled: false
+  method: squash  # "squash", "merge", or "rebase"
+  # Only auto-merge passing checks and specific update types:
+  # requireChecks: true
+  # only:
+  #   - patch
+  #   - minor
+
+# How to group dependency updates into PRs
+grouping:
+  strategy: individual  # "individual" (one per dep) or "grouped"
+  # rules:  # Uncomment to define custom groups
+  #   - name: "Apache Commons"
+  #     patterns:
+  #       - "org.apache.commons:*"
+  #   - name: "Jackson"
+  #     patterns:
+  #       - "com.fasterxml.jackson.*"
+
+# Multi-project repository configuration
+# This repo has 3 independent test cases, each a separate Maven project
+projects:
+  # Test Case 1: Three-level reactor hierarchy
+  tc1:
+    path: tc1
+    ecosystem: maven
+    validation:
+      enabled: true
+      commands:
+        - "mvn verify -f tc1/pom.xml -q"
+    # ignore:
+    #   packages:
+    #     - "org.apache.commons:commons-lang3"  # Example: pin a specific dep
+
+  # Test Case 2: Reactor with orphan module
+  tc2:
+    path: tc2
+    ecosystem: maven
+    validation:
+      enabled: true
+      # The orphan module requires standalone verify since it's not in the reactor
+      commands:
+        - "mvn verify -f tc2/pom.xml -q"
+        - "mvn verify -f tc2/orphan/pom.xml -q"
+    # ignore:
+    #   packages:
+    #     - "com.google.guava:guava"  # Example: pin a specific dep
+
+  # Test Case 3: Four-level hierarchy with unrelated topmost
+  tc3:
+    path: tc3/great-grandparent
+    ecosystem: maven
+    validation:
+      enabled: true
+      commands:
+        - "mvn verify -f tc3/great-grandparent/pom.xml -q"
+    # ignore:
+    #   packages:
+    #     - "org.apache.commons:commons-text"  # Example: pin a specific dep
