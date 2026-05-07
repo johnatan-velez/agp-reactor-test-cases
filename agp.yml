@@ -34,13 +34,10 @@ agent:
   timeout: 30m
 
 # Build validation after upgrades
-# These commands run to verify the changes don't break the build
+# Let the adapter's getValidationCommands() handle reactor root detection automatically.
+# No explicit commands here — this is what GUIDE-2195 is testing.
 validation:
   enabled: true
-  # Commands to validate the project after dependency changes
-  # These are the actual commands this Maven project uses
-  commands:
-    - "mvn verify -q"
   timeout: 10m
 
 # Pull request settings
@@ -87,42 +84,17 @@ grouping:
   #       - "com.fasterxml.jackson.*"
 
 # Multi-project repository configuration
-# This repo has 3 independent test cases, each a separate Maven project
+# No per-project validation commands — let the adapter auto-detect reactor roots.
+# This exercises the findReactorRoot fix from GUIDE-2195.
 projects:
-  # Test Case 1: Three-level reactor hierarchy
   tc1:
     path: tc1
     ecosystem: maven
-    validation:
-      enabled: true
-      commands:
-        - "mvn verify -f tc1/pom.xml -q"
-    # ignore:
-    #   packages:
-    #     - "org.apache.commons:commons-lang3"  # Example: pin a specific dep
 
-  # Test Case 2: Reactor with orphan module
   tc2:
     path: tc2
     ecosystem: maven
-    validation:
-      enabled: true
-      # The orphan module requires standalone verify since it's not in the reactor
-      commands:
-        - "mvn verify -f tc2/pom.xml -q"
-        - "mvn verify -f tc2/orphan/pom.xml -q"
-    # ignore:
-    #   packages:
-    #     - "com.google.guava:guava"  # Example: pin a specific dep
 
-  # Test Case 3: Four-level hierarchy with unrelated topmost
   tc3:
     path: tc3/great-grandparent
     ecosystem: maven
-    validation:
-      enabled: true
-      commands:
-        - "mvn verify -f tc3/great-grandparent/pom.xml -q"
-    # ignore:
-    #   packages:
-    #     - "org.apache.commons:commons-text"  # Example: pin a specific dep
